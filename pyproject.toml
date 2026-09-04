@@ -1,0 +1,17 @@
+[project]
+name = "amyvasc-release"
+version = "0.1.0"
+description = "Analysis and figure-reproduction code for the AmyVasc manuscript."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.9,<4",
+    "nibabel>=5.3,<6",
+    "nilearn>=0.13.1,<1",
+    "numpy>=2.1,<3",
+    "pandas>=2.2,<4",
+    "scipy>=1.14,<2",
+]
+
+[tool.uv]
+package = false

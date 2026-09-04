@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the associated manuscript."
+title: "AmyVasc: analysis and figure-reproduction code"
+type: software
+authors:
+  - family-names: Diamandis
+    given-names: Zachary
+  - family-names: Tyszka
+    given-names: J. Michael
+  - family-names: Adolphs
+    given-names: Ralph
+version: 0.1.0
+repository-code: "https://github.com/zdiamandis/amyvasc-release"
+license: MIT
