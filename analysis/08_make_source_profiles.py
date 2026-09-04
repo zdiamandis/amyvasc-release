@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from amyvasc_release.masks import require_binary_mask  # noqa: E402
 from amyvasc_release.source_profiles import (  # noqa: E402
     CONDITIONS,
     CandidateSpec,
@@ -23,6 +24,7 @@ from amyvasc_release.source_profiles import (  # noqa: E402
     extract_profiles,
     extract_reference_support,
     extract_target_voxels,
+    held_out_task_prediction,
     load_candidates,
     load_s4_positive_controls,
     load_targets,
@@ -31,7 +33,6 @@ from amyvasc_release.source_profiles import (  # noqa: E402
     segment_grid,
     validate_s4_positive_control_support,
 )
-from amyvasc_release.masks import require_binary_mask  # noqa: E402
 
 S4_UNRESTRICTED_TARGETS = (
     "glasser__v2",
@@ -69,7 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=20_260_710)
     parser.add_argument(
         "--primary-target",
-        help="Target key used for the leave-Emotion-out sensitivity analysis.",
+        help=(
+            "Target key used for held-out prediction and leave-Emotion-out "
+            "sensitivity analyses."
+        ),
     )
     parser.add_argument(
         "--point-spread-target",
@@ -171,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     condition_tables = []
     emotion_tables = []
     emotion_paired_tables = []
+    prediction_tables = []
     for target in targets:
         wide = wide_tables[target.key]
         _write(wide, args.output_dir / "participant_profiles" / f"{target.key}.tsv")
@@ -188,6 +193,14 @@ def main(argv: list[str] | None = None) -> int:
         condition_tables.append(result["profiles"])
 
         if target.key == primary_target:
+            for scenario, excluded_tasks in (
+                ("all_tasks", ()), ("exclude_emotion", ("emotion",))
+            ):
+                prediction = held_out_task_prediction(
+                    wide, target, candidates, exclude_tasks=excluded_tasks,
+                )
+                prediction.insert(2, "scenario", scenario)
+                prediction_tables.append(prediction)
             excluded_result = analyze_profile(
                 wide,
                 target,
@@ -220,6 +233,10 @@ def main(argv: list[str] | None = None) -> int:
         args.output_dir / "group_condition_profiles.tsv",
     )
     if emotion_tables:
+        _write(
+            pd.concat(prediction_tables, ignore_index=True),
+            args.output_dir / "held_out_task_prediction.tsv",
+        )
         _write(
             pd.concat(emotion_tables, ignore_index=True),
             args.output_dir / "emotion_exclusion_sensitivity.tsv",

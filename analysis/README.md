@@ -92,6 +92,11 @@ as an external command by `07_run_rapidtide.py`.
    in the same amygdala reference ROI (participant voxel medians, then their
    mean, separately by hemisphere), before taking the maximum across kernels
    at each target voxel and averaging by distance shell.
+   This stage also writes `held_out_task_prediction.tsv`, ranking single-region
+   predictions of the primary target in held-out tasks, with all tasks and with
+   Emotion excluded. Linear models include an intercept and give each task
+   equal weight; pooled prediction accuracy is reported as Q² relative to the
+   overall task-weighted target mean.
 9. Run `09_summarize_atlas_overlap.py` with the CIT168 and Harvard-Oxford
    amygdala masks to reproduce the Supplementary Figure S7 overlap table.
 10. Run `10_export_figure_tables.py` with the completed stage directories to

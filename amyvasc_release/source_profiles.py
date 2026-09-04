@@ -1305,6 +1305,99 @@ def analyze_profile(
     }
 
 
+def held_out_task_prediction(
+    wide: pd.DataFrame,
+    target: TargetSpec,
+    candidates: Sequence[CandidateSpec],
+    *,
+    exclude_tasks: Iterable[str] = (),
+) -> pd.DataFrame:
+    """Rank single-region predictions of tasks omitted from model fitting.
+
+    Average participant profiles first, then fit an intercept and slope on
+    all remaining tasks to predict each held-out task. Each task has equal
+    total weight. Q² is one minus the pooled weighted prediction error divided
+    by squared deviations from the overall weighted target mean. Excluded
+    tasks enter neither training nor evaluation; composites are not ranked.
+    """
+    atlas = [
+        candidate for candidate in candidates
+        if candidate.ranked and not candidate.is_composite
+    ]
+    if not atlas:
+        raise ValueError(
+            "Held-out prediction requires ranked single-region candidates"
+        )
+    keys = [candidate.key for candidate in atlas]
+    cells = ["task", "condition_key", "hemisphere"]
+    required = {"participant", *cells, target.key, *keys}
+    missing = required.difference(wide.columns)
+    if missing:
+        raise ValueError(f"Source profiles are missing {sorted(missing)}")
+    frame = wide.loc[~wide["task"].isin(set(exclude_tasks))]
+    if frame.empty or frame[["participant", *cells]].isna().any().any():
+        raise ValueError(
+            "Held-out prediction requires nonempty, labeled profile cells"
+        )
+    if frame.duplicated(["participant", *cells]).any():
+        raise ValueError("Duplicate participant/condition/hemisphere profile cells")
+    n_participants = frame["participant"].nunique()
+    grouped = frame.groupby(cells, sort=False)
+    if not grouped.size().eq(n_participants).all():
+        raise ValueError(
+            "Every participant must have the same condition/hemisphere cells"
+        )
+    group = grouped[[target.key, *keys]].mean().reset_index()
+    tasks = group["task"].to_numpy()
+    if group["task"].nunique() < 2:
+        raise ValueError("Held-out prediction requires at least two retained tasks")
+    values = group[[target.key, *keys]].to_numpy(float)
+    if not np.isfinite(values).all():
+        raise ValueError("Every target/candidate group-profile cell must be finite")
+    y, x = values[:, 0], values[:, 1:]
+    weights = task_equal_weights(group)
+    target_mean = np.sum(weights * y)
+    sst = float(np.sum(weights * (y - target_mean) ** 2))
+    if np.ptp(y) == 0 or sst <= 0:
+        raise ValueError("Held-out Q² is undefined for a constant target profile")
+
+    predicted = np.empty_like(x)
+    for task in dict.fromkeys(tasks):
+        test = tasks == task
+        train = ~test
+        w = weights[train] / weights[train].sum()
+        y_mean = np.sum(w * y[train])
+        x_mean = np.sum(w[:, None] * x[train], axis=0)
+        centered_x = x[train] - x_mean
+        covariance = np.sum(
+            w[:, None] * centered_x * (y[train] - y_mean)[:, None], axis=0
+        )
+        variance = np.sum(w[:, None] * centered_x ** 2, axis=0)
+        # A candidate with no training variation predicts the training target mean.
+        slopes = np.divide(
+            covariance, variance, out=np.zeros_like(variance),
+            where=(np.ptp(x[train], axis=0) > 0) & (variance > 0),
+        )
+        predicted[test] = y_mean + (x[test] - x_mean) * slopes
+    sse = np.sum(weights[:, None] * (y[:, None] - predicted) ** 2, axis=0)
+    result = pd.DataFrame({
+        "target_key": target.key,
+        "target_label": target.label,
+        "candidate_key": keys,
+        "candidate_label": [candidate.label for candidate in atlas],
+        "q2_global_mean": 1 - sse / sst,
+        "weighted_sse": sse,
+        "weighted_sst": sst,
+        "n_participants": n_participants,
+        "n_conditions": group["condition_key"].nunique(),
+        "n_tasks": group["task"].nunique(),
+    })
+    result["rank"] = (
+        result["q2_global_mean"].rank(ascending=False, method="min").astype(int)
+    )
+    return result.sort_values(["rank", "candidate_key"]).reset_index(drop=True)
+
+
 def segment_grid(
     results: Sequence[dict[str, pd.DataFrame]],
     targets: Sequence[TargetSpec],
