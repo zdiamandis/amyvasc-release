@@ -29,7 +29,7 @@ upstream prerequisites; they are not performed by this renderer.
 | `hcp.effect` | HCP group fear-minus-shape effect map from `02_fit_hcp_tasks.py --group-maps` |
 | `hcp.amygdala` | Binary CIT168 pAmy >= 0.50 mask on that exact 2-mm grid |
 | `hcp.venat` | VENAT partial-volume atlas transformed from MNI152NLin2009cAsym into MNI152NLin6Asym, at 0.5 mm |
-| `hcp.anatomy` | Anatomical background; the manuscript renderer used Nilearn's `load_mni152_template(resolution=1)` |
+| `hcp.anatomy` | TemplateFlow `tpl-MNI152NLin6Asym_res-01_T1w.nii.gz`, matching the HCP maps and transformed VENAT |
 | `emotion_effect` | Subject-specific fear-minus-shape fixed-effects effect from `03_fit_internal_emotion.py` |
 | `movie_effect` | Subject-specific face-presence fixed-effects effect from `04_fit_movie_faces.py` |
 | `frangi` | Registered 0.5-mm QSM-derived Frangi venogram with the preparation below |
@@ -43,6 +43,11 @@ All subject images must already share the same subject-template world-coordinate
 space. Different voxel sizes are allowed; registration cannot be inferred from
 similar NIfTI dimensions or performed by changing an affine header. Keep the
 prepared files and their registration provenance together.
+
+The HCP background must use MNI152NLin6Asym. Reuse the 1-mm fixed T1w template
+from the VENAT registration below. Nilearn's `load_mni152_template` supplies a
+different MNI template (ICBM1522009a) and is not interchangeable without an
+inter-template transformation.
 
 The manuscript TOF images were affine-registered to the subject's 0.5-mm T1
 template, brain-masked, and averaged across two acquisitions. QSM reconstruction
@@ -89,6 +94,8 @@ registered atlas with the figure inputs.
 - Neurological orientation; subject sampling z coordinates are -8.977964,
   -9.969137, and -10.46914 mm for Damy001–003; displayed coordinates are rounded
   to 0.5 mm. The HCP row is z = -12 mm in MNI space.
+- Native activation pixels and binary contours retain their voxel-center world
+  coordinates; image extents extend half a voxel beyond the outer centers.
 - Figure 3: HCP single-slice activation with a 3-mm VENAT MIP; individual
   single-slice activation with a 5-mm Frangi MIP. HCP activation maximum 1,
   internal effect maximum 3, VENAT maximum 0.4, Frangi maximum 0.25.

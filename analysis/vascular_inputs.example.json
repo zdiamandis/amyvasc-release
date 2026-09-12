@@ -2,7 +2,7 @@
   "hcp": {
     "effect": "../outputs/hcp/emotion/group_display/group_effect_fear_minus_shape.nii.gz",
     "venat": "../inputs/VENAT_PartialVolume_space-MNI152NLin6Asym_res-0p5.nii.gz",
-    "anatomy": "../inputs/mni152_template_1mm.nii.gz",
+    "anatomy": "../inputs/tpl-MNI152NLin6Asym_res-01_T1w.nii.gz",
     "amygdala": "../outputs/masks/cit168_amygdala_p50.nii.gz",
     "z": -12.0
   },

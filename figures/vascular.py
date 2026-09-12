@@ -106,7 +106,11 @@ def sample_mip(image, data, x, y, z, *, width, order):
 
 
 def native_slice(image, data, z):
-    """Keep the native voxel grid for HCP activation and binary contours."""
+    """Return a native slice and its outer pixel edges in world coordinates.
+
+    Both imshow and contour(origin="lower") interpret extent as pixel edges;
+    half-voxel padding keeps their pixel centers on the image's native grid.
+    """
     affine = image.affine
     if not np.allclose(affine[:3, :3], np.diag(np.diag(affine[:3, :3]))):
         raise ValueError(
@@ -122,11 +126,12 @@ def native_slice(image, data, z):
     if not len(ix) or not len(iy):
         raise ValueError("No image voxels fall inside the manuscript crop.")
     ix, iy = ix[np.argsort(x[ix])], iy[np.argsort(y[iy])]
+    half_x, half_y = abs(affine[0, 0]) / 2, abs(affine[1, 1]) / 2
     return data[np.ix_(ix, iy, [k])][:, :, 0].T, (
-        x[ix[0]],
-        x[ix[-1]],
-        y[iy[0]],
-        y[iy[-1]],
+        x[ix[0]] - half_x,
+        x[ix[-1]] + half_x,
+        y[iy[0]] - half_y,
+        y[iy[-1]] + half_y,
     )
 
 

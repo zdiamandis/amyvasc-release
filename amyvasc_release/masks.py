@@ -45,6 +45,13 @@ BVR_LABELS: Mapping[str, Mapping[str, tuple[int, ...]]] = {
 
 # Voxel-index boxes on the HCP-YA 2-mm grid. Within each box, the manuscript
 # target contains voxels whose group fear-minus-shape beta is greater than 0.5%.
+BVR_GRID_SHAPE = (91, 109, 91)
+BVR_GRID_AFFINE = (
+    (-2.0, 0.0, 0.0, 90.0),
+    (0.0, 2.0, 0.0, -126.0),
+    (0.0, 0.0, 2.0, -72.0),
+    (0.0, 0.0, 0.0, 1.0),
+)
 BVR_BOXES: Mapping[int, tuple[int, int, int, int, int, int]] = {
     1: (49, 8, 59, 6, 27, 5),
     2: (32, 8, 59, 6, 27, 5),
@@ -424,14 +431,26 @@ def build_bvr_label_image(
     *,
     threshold: float = 0.50,
 ) -> nib.Nifti1Image:
-    """Create the six BVR segment labels from the HCP group effect map."""
+    """Create the six BVR labels on the original HCP 2-mm voxel grid.
+
+    The fixed boxes index the native LAS storage order, so a reoriented image
+    must be restored to that grid even if it represents the same physical map.
+    """
     if group_effect.ndim != 3:
         raise ValueError(
             f"Expected a 3D group effect image, found {group_effect.shape}"
         )
-    if group_effect.shape[:3] != (91, 109, 91):
+    if group_effect.shape[:3] != BVR_GRID_SHAPE:
         raise ValueError(
             "The BVR bounding boxes are defined on the 91 x 109 x 91 HCP grid"
+        )
+    if not np.allclose(group_effect.affine, BVR_GRID_AFFINE, atol=1e-5, rtol=0):
+        raise ValueError(
+            "BVR voxel-index boxes require the native HCP MNI152NLin6Asym "
+            "2-mm LAS affine "
+            "[[-2,0,0,90],[0,2,0,-126],[0,0,2,-72],[0,0,0,1]]. "
+            "Supply the original HCP-grid effect map; if reoriented, restore "
+            "its native voxel order and affine together before defining labels."
         )
     if not np.isfinite(threshold):
         raise ValueError("BVR effect threshold must be finite")
