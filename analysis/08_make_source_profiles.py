@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from functools import partial
+import json
 import sys
 from pathlib import Path
 
@@ -16,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from amyvasc_release.masks import require_binary_mask  # noqa: E402
+from amyvasc_release.provenance import software_versions  # noqa: E402
 from amyvasc_release.source_profiles import (  # noqa: E402
     CONDITIONS,
     CandidateSpec,
@@ -66,6 +69,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Binary CIT168 pAmy >= 0.50 mask from 01_prepare_masks.py.",
     )
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--statistic",
+        choices=("median", "mean"),
+        default="median",
+        help=(
+            "Within-participant ROI voxel summary: median is the primary "
+            "estimator; mean is the sensitivity analysis. Use separate output "
+            "directories for the two estimators."
+        ),
+    )
     parser.add_argument("--bootstrap", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=20_260_710)
     parser.add_argument(
@@ -95,15 +108,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write(frame: pd.DataFrame, path: Path) -> None:
+def _write(frame: pd.DataFrame, path: Path, *, statistic: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(path, sep="\t", index=False)
+    frame.assign(
+        voxel_statistic=statistic,
+        voxel_statistic_role="primary" if statistic == "median" else "sensitivity",
+    ).to_csv(path, sep="\t", index=False)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    write_table = partial(_write, statistic=args.statistic)
     if args.bootstrap < 1:
         raise ValueError("--bootstrap must be positive")
+    if args.statistic == "mean" and args.point_spread_target:
+        raise ValueError(
+            "The modeled-blur comparison uses median reference normalization; "
+            "run it with --statistic median."
+        )
     if bool(args.point_spread_target) != bool(args.amygdala_probability):
         raise ValueError(
             "--point-spread-target and --amygdala-probability must be supplied together"
@@ -147,10 +169,11 @@ def main(argv: list[str] | None = None) -> int:
         unrestricted_profile_keys=(
             S4_UNRESTRICTED_TARGETS if args.s4_positive_controls is not None else ()
         ),
+        statistic=args.statistic,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    _write(inventory, args.output_dir / "candidate_inventory.tsv")
-    _write(
+    write_table(inventory, args.output_dir / "candidate_inventory.tsv")
+    write_table(
         pd.DataFrame(
             [
                 {
@@ -178,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     prediction_tables = []
     for target in targets:
         wide = wide_tables[target.key]
-        _write(wide, args.output_dir / "participant_profiles" / f"{target.key}.tsv")
+        write_table(wide, args.output_dir / "participant_profiles" / f"{target.key}.tsv")
         result = analyze_profile(
             wide,
             target,
@@ -216,36 +239,36 @@ def main(argv: list[str] | None = None) -> int:
             excluded_paired.insert(1, "scenario", "exclude_emotion")
             emotion_paired_tables.append(excluded_paired)
 
-    _write(
+    write_table(
         pd.concat(correlation_tables, ignore_index=True),
         args.output_dir / "source_profile_correlations.tsv",
     )
-    _write(
+    write_table(
         pd.concat(paired_tables, ignore_index=True),
         args.output_dir / "paired_candidate_differences.tsv",
     )
-    _write(
+    write_table(
         pd.concat(commonality_tables, ignore_index=True),
         args.output_dir / "pairwise_commonality.tsv",
     )
-    _write(
+    write_table(
         pd.concat(condition_tables, ignore_index=True),
         args.output_dir / "group_condition_profiles.tsv",
     )
     if emotion_tables:
-        _write(
+        write_table(
             pd.concat(prediction_tables, ignore_index=True),
             args.output_dir / "held_out_task_prediction.tsv",
         )
-        _write(
+        write_table(
             pd.concat(emotion_tables, ignore_index=True),
             args.output_dir / "emotion_exclusion_sensitivity.tsv",
         )
-        _write(
+        write_table(
             pd.concat(emotion_paired_tables, ignore_index=True),
             args.output_dir / "emotion_exclusion_paired_candidate_differences.tsv",
         )
-    _write(
+    write_table(
         segment_grid(analyses, targets, inventory=inventory),
         args.output_dir / "segment_exclusion_grid.tsv",
     )
@@ -264,11 +287,11 @@ def main(argv: list[str] | None = None) -> int:
             controls,
             candidates,
         )
-        _write(
+        write_table(
             metrics,
             args.output_dir / "figureS4_pairwise_positive_controls.tsv",
         )
-        _write(
+        write_table(
             rankings,
             args.output_dir / "figureS4_positive_control_atlas_rankings.tsv",
         )
@@ -325,8 +348,35 @@ def main(argv: list[str] | None = None) -> int:
             reference_support=reference_support,
             reference=reference,
         )
-        _write(blur, args.output_dir / "modeled_blur.tsv")
+        write_table(blur, args.output_dir / "modeled_blur.tsv")
 
+    metadata = {
+        "voxel_statistic": args.statistic,
+        "voxel_statistic_role": (
+            "primary" if args.statistic == "median" else "sensitivity"
+        ),
+        "n_cohort": len(subjects),
+        "primary_target": primary_target,
+        "bootstrap_unit": "participant",
+        "bootstrap_missing_support": "cell-wise finite ROI means within each draw",
+        "candidate_support_counts": (
+            "Finite target/candidate participant pairs per condition/hemisphere "
+            "cell; descriptive counts do not restrict either ROI group mean."
+        ),
+        "targets": [
+            {
+                "target_key": target.key,
+                "primary": target.primary,
+                "bootstrap_draws": target.bootstrap_draws or args.bootstrap,
+                "bootstrap_seed": args.seed + target.bootstrap_seed_offset,
+            }
+            for target in targets
+        ],
+        "software_versions": software_versions(),
+    }
+    (args.output_dir / "run_metadata.json").write_text(
+        json.dumps(metadata, indent=2) + "\n"
+    )
     print(
         f"Wrote source-profile results for {len(targets)} targets to {args.output_dir}"
     )

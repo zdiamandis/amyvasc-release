@@ -372,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
             "striate": "Striate BVR",
             "peduncular": "Peduncular BVR",
             "mesencephalic": "Mesencephalic BVR",
-            "striate_peduncular": "Primary peri-amygdalar target",
+            "striate_peduncular": "Combined peri-amygdalar target",
         }
     )
     targets["exclusion"] = targets["pamy_exclusion"].map(
@@ -381,6 +381,8 @@ def main(argv: list[str] | None = None) -> int:
     targets["primary"] = targets["segment"].eq("striate_peduncular") & targets[
         "pamy_exclusion"
     ].eq(0.50)
+    targets.loc[targets["primary"], "label"] = "Primary peri-amygdalar target"
+    targets["label"] += " (" + targets["exclusion"] + " excluded)"
     targets["bootstrap_seed_offset"] = 0
     targets["path"] = targets["path"].map(lambda value: Path(value).name)
     order = {0.50: 0, 0.20: 1, 0.05: 2}

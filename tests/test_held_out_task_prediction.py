@@ -55,7 +55,7 @@ class HeldOutTaskPredictionTests(unittest.TestCase):
         self.assertEqual(set(result.index), {"source", "constant"})
         self.assertAlmostEqual(result.loc["source", "q2_global_mean"], 1.0)
         self.assertEqual(result.loc["source", "rank"], 1)
-        self.assertEqual(result.loc["source", "n_participants"], 2)
+        self.assertEqual(result.loc["source", "n_cohort"], 2)
 
     def test_duplicating_conditions_within_one_task_preserves_task_weight(self):
         duplicated = self.wide.loc[self.wide.task.eq("emotion")].copy()

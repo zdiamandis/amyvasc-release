@@ -4,15 +4,20 @@ tables/figure4_panel_b_task_mean_pstc.tsv	4	B	Task-averaged peri-stimulus curves
 tables/figure4_panel_c_directional_trimming.tsv	4	C	Directional ROI-trimming profiles	aggregate
 tables/figure4_panel_d_voxel_observations.tsv	4	D	Group-median voxel effects and BVR distance	group-voxel
 tables/figure4_panel_d_voxel_gradient_summary.tsv	4	D	Distance-gradient fits	aggregate
+tables/figure4_participant_distance_slope_summary.tsv	4	Results	Mean participant distance slopes with t-based confidence intervals in beta per mm	aggregate
 tables/figure4_panel_e_subnucleus_summary.tsv	4	E	Subnucleus effect and distance summaries	aggregate
 tables/figure5_panel_b_hcp_emotion_extent.tsv	5	B	Smoothing-dependent amygdala extent	aggregate
 tables/figure6_panel_bc_group_summary.tsv	6	B-C	Resting-state lag and ordering summaries	aggregate
+tables/figure6_panel_b_participant_ordering.tsv	6	B	Paired participant striate and peduncular lags relative to amygdala in ms	participant-display
+tables/figure6_panel_c_participant_slopes.tsv	6	C	Participant combined-segment distance slopes in ms per mm	participant-display
 tables/figure6_panel_d_amygdala_probability_sensitivity.tsv	6	D	Amygdala-overlap exclusion sensitivity	aggregate
 tables/figure7_atlas_correlations.tsv	7	Results	Full candidate-atlas task-profile screen	aggregate
 tables/figure7_modeled_blur.tsv	7	D	Observed trace amplitude and maximum reference-normalized partial-volume blur	aggregate
 tables/figure7_candidate_correlations.tsv	7	A	Displayed candidate correlations and bootstrap intervals	aggregate
 tables/figure7_candidate_mask_inventory.tsv	7	Methods	Candidate voxels before and after gray-matter and target-overlap restriction	aggregate
 tables/figure7_emotion_exclusion_sensitivity.tsv	7	Results	Leave-Emotion-out profile sensitivity	aggregate
+tables/figure7_held_out_task_prediction.tsv	7	Results	Task-weighted held-out prediction Q-squared with and without Emotion	aggregate
+tables/figure7_voxelwise_mean_sensitivity.tsv	7	Results	Voxelwise-mean source-profile sensitivity correlations and bootstrap intervals	aggregate
 tables/figure7_group_condition_profiles.tsv	7	B	Standardized task-condition profiles for the target and displayed candidates	aggregate
 tables/figure7_paired_candidate_differences.tsv	7	Results	Paired candidate-correlation differences	aggregate
 tables/figure7_pairwise_commonality.tsv	7	C	Shared and unique task-profile variance	aggregate

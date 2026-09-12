@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 
@@ -121,6 +122,13 @@ SPATIAL = {
     "language_story": ("Language story", "#8172B2"),
 }
 
+SOURCE_SUPPORT_COLUMNS = (
+    "n_cohort",
+    "n_paired_cell_participants_min",
+    "n_paired_cell_participants_median",
+    "n_paired_cell_participants_max",
+)
+
 
 def read(path: Path, columns: tuple[str, ...]) -> pd.DataFrame:
     if not path.is_file():
@@ -151,6 +159,13 @@ def unique_row(frame: pd.DataFrame, description: str) -> pd.Series:
     if len(frame) != 1:
         raise ValueError(f"Expected one {description} row, found {len(frame)}")
     return frame.iloc[0]
+
+
+def require_profile_statistic(root: Path, statistic: str) -> None:
+    """Prevent a sensitivity run from silently replacing the primary statistic."""
+    metadata = json.loads((root / "run_metadata.json").read_text())
+    if metadata.get("voxel_statistic") != statistic:
+        raise ValueError(f"{root} must contain a {statistic}-based source-profile run")
 
 
 def pseg(value: object) -> str | None:
@@ -435,6 +450,18 @@ def export_spatial(root: Path, out: Path) -> list[Path]:
         ),
     )
     outputs.append(emit(subnuclei, out, "figure4_panel_e_subnucleus_summary.tsv"))
+    slopes = read(
+        root / "distance_slope_summary.tsv",
+        ("condition_key", "n_subjects", "mean", "sem", "ci95_low", "ci95_high"),
+    ).rename(
+        columns={
+            "mean": "mean_slope_beta_per_mm",
+            "sem": "sem_slope_beta_per_mm",
+            "ci95_low": "ci95_low_slope_beta_per_mm",
+            "ci95_high": "ci95_high_slope_beta_per_mm",
+        }
+    )
+    outputs.append(emit(slopes, out, "figure4_participant_distance_slope_summary.tsv"))
     return outputs
 
 
@@ -480,7 +507,55 @@ def at_threshold(table: pd.DataFrame, value: str) -> pd.DataFrame:
     return table.loc[table["exclusion"].map(pseg).eq(value)]
 
 
+def figure6_participant_tables(
+    lags: pd.DataFrame, gradients: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Preserve within-participant pairing while omitting controlled identifiers."""
+    primary_lags = at_threshold(lags, "pseg50").copy()
+    primary_lags["segment"] = primary_lags["segment"].replace({"striatal": "striate"})
+    primary_lags = primary_lags.loc[
+        primary_lags["segment"].isin(("striate", "peduncular"))
+    ]
+    if primary_lags.duplicated(["participant", "segment"]).any():
+        raise ValueError("Figure 6 requires one lag per participant and segment")
+    paired = primary_lags.pivot(
+        index="participant", columns="segment", values="target_minus_amy_ms"
+    ).reindex(columns=("striate", "peduncular"))
+    if paired.empty or not np.isfinite(paired.to_numpy(dtype=float)).all():
+        raise ValueError("Figure 6 requires finite paired striate/peduncular lags")
+
+    slopes = at_threshold(gradients, "pseg50")
+    slopes = slopes.loc[
+        slopes["segment"].isin(("combined", "striate_peduncular"))
+        & np.isfinite(slopes["slope_ms_per_mm"])
+    ].copy()
+    if slopes.empty or slopes["participant"].duplicated().any():
+        raise ValueError("Figure 6 requires one finite combined slope per participant")
+    participants = sorted(set(paired.index) | set(slopes["participant"]))
+    display_ids = {participant: index + 1 for index, participant in enumerate(participants)}
+    paired = paired.rename(
+        columns={"striate": "striate_lag_ms", "peduncular": "peduncular_lag_ms"}
+    )
+    paired.insert(0, "amygdala_lag_ms", 0.0)
+    paired.insert(0, "display_id", paired.index.map(display_ids))
+    slopes["display_id"] = slopes["participant"].map(display_ids)
+    return (
+        paired.reset_index(drop=True).sort_values("display_id"),
+        slopes[["display_id", "slope_ms_per_mm"]].sort_values("display_id"),
+    )
+
+
 def export_lags(root: Path, out: Path) -> list[Path]:
+    paired, slopes = figure6_participant_tables(
+        read(
+            root / "participant_lags.tsv",
+            ("participant", "segment", "exclusion", "target_minus_amy_ms"),
+        ),
+        read(
+            root / "participant_gradients.tsv",
+            ("participant", "segment", "exclusion", "slope_ms_per_mm"),
+        ),
+    )
     reported = read(
         root / "reported_timing_summary.tsv",
         (
@@ -535,6 +610,13 @@ def export_lags(root: Path, out: Path) -> list[Path]:
             "figure6_panel_bc_group_summary.tsv",
         )
     ]
+
+    outputs.extend(
+        [
+            emit(paired, out, "figure6_panel_b_participant_ordering.tsv"),
+            emit(slopes, out, "figure6_panel_c_participant_slopes.tsv"),
+        ]
+    )
 
     lags = read(
         root / "lag_summary.tsv",
@@ -748,6 +830,7 @@ def canonical_source_label(row: pd.Series) -> str:
 
 
 def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[Path]:
+    require_profile_statistic(root, "median")
     correlations = read(
         root / "source_profile_correlations.tsv",
         (
@@ -763,6 +846,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
             "bootstrap_q975",
             "n_conditions",
             "n_tasks",
+            *SOURCE_SUPPORT_COLUMNS,
         ),
     )
     target = select_primary(correlations, requested_target)
@@ -791,7 +875,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
                     "bootstrap_median": row["bootstrap_median"],
                     "bootstrap_q025": row["bootstrap_q025"],
                     "bootstrap_q975": row["bootstrap_q975"],
-                    "n_subjects": int(row["n_participants"]),
+                    **{column: row[column] for column in SOURCE_SUPPORT_COLUMNS},
                 }
             )
     outputs = [emit(pd.DataFrame(rows), out, "figure7_candidate_correlations.tsv")]
@@ -805,7 +889,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
             "ranked",
             "group_r",
             "rank",
-            "n_participants",
+            *SOURCE_SUPPORT_COLUMNS,
             "n_conditions",
             "n_tasks",
         ),
@@ -831,6 +915,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
                     "n_conditions": int(row.n_conditions),
                     "n_tasks": int(row.n_tasks),
                     "rank": int(row.rank),
+                    **{column: getattr(row, column) for column in SOURCE_SUPPORT_COLUMNS},
                 }
             )
     outputs.append(
@@ -1007,7 +1092,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
             "bootstrap_q025",
             "bootstrap_q975",
             "probability_reference_greater",
-            "n_participants",
+            "n_cohort",
             "n_bootstrap",
         ),
     )
@@ -1040,7 +1125,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
                     row.bootstrap_q025 > 0 or row.bootstrap_q975 < 0
                 ),
                 "probability_reference_greater": row.probability_reference_greater,
-                "n_subjects": int(row.n_participants),
+                "n_cohort": int(row.n_cohort),
                 "n_bootstrap": int(row.n_bootstrap),
             }
         )
@@ -1070,7 +1155,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
             "bootstrap_q025",
             "bootstrap_q975",
             "probability_reference_greater",
-            "n_participants",
+            "n_cohort",
             "n_bootstrap",
         ),
     )
@@ -1111,7 +1196,7 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
                         ],
                         "n_conditions": int(amy["n_conditions"]),
                         "n_tasks": int(amy["n_tasks"]),
-                        "n_subjects": int(comparison["n_participants"]),
+                        "n_cohort": int(comparison["n_cohort"]),
                         "n_bootstrap": int(comparison["n_bootstrap"]),
                     }
                 ]
@@ -1121,10 +1206,46 @@ def export_figure7(root: Path, out: Path, requested_target: str | None) -> list[
         )
     )
 
+    outputs.append(
+        emit(
+            read(
+                root / "held_out_task_prediction.tsv",
+                ("scenario", "candidate_key", "q2_global_mean", "n_cohort", "rank"),
+            ),
+            out,
+            "figure7_held_out_task_prediction.tsv",
+        )
+    )
     return outputs
 
 
+def export_mean_sensitivity(root: Path, out: Path) -> list[Path]:
+    require_profile_statistic(root, "mean")
+    table = read(
+        root / "source_profile_correlations.tsv",
+        (
+            "target_key", "segment", "exclusion", "candidate_key", "group_r",
+            "bootstrap_q025", "bootstrap_q975", *SOURCE_SUPPORT_COLUMNS,
+        ),
+    )
+    primary = select_primary(table, None)
+    table = table.loc[table["target_key"].eq(primary)].copy()
+    table["voxel_statistic"] = "mean"
+    return [
+        emit(
+            table, out, "figure7_voxelwise_mean_sensitivity.tsv",
+            (
+                "target_key", "target_label", "segment", "exclusion",
+                "candidate_key", "candidate_label", "group_r",
+                "bootstrap_q025", "bootstrap_q975", *SOURCE_SUPPORT_COLUMNS,
+                "n_conditions", "n_tasks", "voxel_statistic", "voxel_statistic_role",
+            ),
+        )
+    ]
+
+
 def export_s5(root: Path, out: Path) -> list[Path]:
+    require_profile_statistic(root, "median")
     grid = read(
         root / "segment_exclusion_grid.tsv",
         ("segment", "exclusion", "r_amy", "r_amy_lo", "r_amy_hi", "rank_amy", "r_pir"),
@@ -1204,6 +1325,7 @@ def export_s5(root: Path, out: Path) -> list[Path]:
 
 
 def export_s4_controls(root: Path, out: Path) -> list[Path]:
+    require_profile_statistic(root, "median")
     controls = read(
         root / "figureS4_pairwise_positive_controls.tsv",
         (
@@ -1220,6 +1342,7 @@ def export_s4_controls(root: Path, out: Path) -> list[Path]:
 def export_s4_rankings(
     root: Path, out: Path, requested_target: str | None
 ) -> list[Path]:
+    require_profile_statistic(root, "median")
     correlations = read(
         root / "source_profile_correlations.tsv",
         (
@@ -1241,7 +1364,7 @@ def export_s4_rankings(
             "participant_median_r",
             "participant_q25_r",
             "participant_q75_r",
-            "n_participants",
+            *SOURCE_SUPPORT_COLUMNS,
         ),
     )
     if requested_target is None:
@@ -1332,7 +1455,6 @@ def export_s4_rankings(
             "participant_median_r": "subject_median_r",
             "participant_q25_r": "subject_q25_r",
             "participant_q75_r": "subject_q75_r",
-            "n_participants": "n_subjects",
         }
     ).sort_values("rank")
     selected["source_label"] = selected.apply(canonical_source_label, axis=1)
@@ -1357,7 +1479,7 @@ def export_s4_rankings(
                 "subject_median_r",
                 "subject_q25_r",
                 "subject_q75_r",
-                "n_subjects",
+                *SOURCE_SUPPORT_COLUMNS,
                 "pre_support_voxels",
                 "gray_matter_supported_voxels",
                 "gray_matter_excluded_voxels",
@@ -1397,6 +1519,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--smoothing-dir", type=Path)
     result.add_argument("--rapidtide-dir", type=Path)
     result.add_argument("--figure7-source-profiles-dir", type=Path)
+    result.add_argument("--mean-source-profiles-dir", type=Path)
     result.add_argument("--s5-source-profiles-dir", type=Path)
     result.add_argument("--s4-source-profiles-dir", type=Path)
     result.add_argument("--s4-positive-controls-dir", type=Path)
@@ -1420,6 +1543,7 @@ def main(argv: list[str] | None = None) -> int:
         args.smoothing_dir,
         args.rapidtide_dir,
         args.figure7_source_profiles_dir,
+        args.mean_source_profiles_dir,
         args.s5_source_profiles_dir,
         args.s4_source_profiles_dir,
         args.s4_positive_controls_dir,
@@ -1448,6 +1572,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.s5_source_profiles_dir:
         outputs += export_s5(args.s5_source_profiles_dir, args.output_dir)
+    if args.mean_source_profiles_dir:
+        outputs += export_mean_sensitivity(args.mean_source_profiles_dir, args.output_dir)
     if args.s4_source_profiles_dir:
         outputs += export_s4_rankings(
             args.s4_source_profiles_dir, args.output_dir, args.s4_target_key

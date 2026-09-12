@@ -3,7 +3,8 @@
 The functions in this module implement the Figure 7/S4/S5 estimands.  They
 start from participant fixed-effect beta maps, intersect support across all
 seven HCP tasks, extract left and right ROI voxel medians, and compare the
-participant-mean task profiles with equal total weight per task.  Profile
+participant-mean task profiles with equal total weight per task. Voxel means
+are available as an extraction sensitivity analysis. Profile
 correspondence does not establish causal source direction or quantify each
 territory's venous contribution.
 """
@@ -549,10 +550,14 @@ def common_support(
     return support
 
 
-def _finite_median(data: np.ndarray, mask: np.ndarray) -> float:
-    values = np.asarray(data[mask], dtype=np.float32)
+def _finite_statistic(
+    data: np.ndarray, indices: np.ndarray, statistic: str
+) -> float:
+    values = np.asarray(data[indices], dtype=np.float32)
     values = values[np.isfinite(values)]
-    return float(np.median(values)) if values.size else np.nan
+    if not values.size:
+        return np.nan
+    return float(np.median(values) if statistic == "median" else np.mean(values))
 
 
 def extract_profiles(
@@ -564,8 +569,9 @@ def extract_profiles(
     gray_matter_support_path: Path,
     unrestricted_profile_keys: Sequence[str] = (),
     conditions: Sequence[Condition] = CONDITIONS,
+    statistic: str = "median",
 ) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, nib.Nifti1Image]:
-    """Extract participant/condition/hemisphere ROI medians for every target.
+    """Extract participant/condition/hemisphere ROI summaries for every target.
 
     Participant IDs are used only to locate inputs. Returned tables contain a
     sequential ``participant`` index and remain local analysis outputs.
@@ -573,7 +579,13 @@ def extract_profiles(
     target overlap is removed. Targets themselves are never restricted.
     ``unrestricted_profile_keys`` adds raw atlas profiles for S4 control
     targets; those columns cannot enter the source-candidate screen.
+    Voxel medians are the primary estimator; voxel means are a sensitivity
+    analysis. Both ignore non-finite voxels after applying common support.
+    Flat voxel indices avoid allocating one full-volume mask per participant,
+    target, candidate, and hemisphere; they preserve boolean-mask voxel order.
     """
+    if statistic not in {"median", "mean"}:
+        raise ValueError("statistic must be 'median' or 'mean'")
     reference = find_reference(fixed_effects_root, subjects, conditions)
     pre_support_candidates = candidate_masks(candidates, reference)
     gray_matter_support = load_gray_matter_support(
@@ -618,9 +630,9 @@ def extract_profiles(
                 supported = source_candidates[candidate.key] & hemi_mask
                 overlap = supported & target_mask
                 clean = supported & ~target_mask
-                prepared[target.key][candidate.key][hemisphere] = clean
+                prepared[target.key][candidate.key][hemisphere] = np.flatnonzero(clean)
                 if candidate.key in unrestricted:
-                    unrestricted[candidate.key][hemisphere] = pre_support
+                    unrestricted[candidate.key][hemisphere] = np.flatnonzero(pre_support)
                 inventory_rows.append(
                     {
                         "target_key": target.key,
@@ -632,6 +644,7 @@ def extract_profiles(
                         "source_cortical_division": candidate.cortical_division,
                         "family": candidate.family,
                         "hemisphere": hemisphere,
+                        "voxel_statistic": statistic,
                         "target_voxels": int((target_mask & hemi_mask).sum()),
                         "gray_matter_support_source": gray_matter_support_path.name,
                         "raw_voxels": int(pre_support.sum()),
@@ -651,22 +664,30 @@ def extract_profiles(
                     }
                 )
 
+    target_indices = {
+        target.key: {
+            hemisphere: np.flatnonzero(target_masks[target.key] & hemi_mask)
+            for hemisphere, hemi_mask in hemispheres.items()
+        }
+        for target in targets
+    }
     rows = {target.key: [] for target in targets}
     for participant, subject in enumerate(subjects, start=1):
-        support = common_support(fixed_effects_root, subject, reference, conditions)
-        indices: dict[str, dict[str, np.ndarray]] = {}
-        for target in targets:
-            target_mask = target_masks[target.key]
-            indices[target.key] = {
-                hemisphere: support & target_mask & hemi_mask
-                for hemisphere, hemi_mask in hemispheres.items()
+        support = common_support(
+            fixed_effects_root, subject, reference, conditions
+        ).ravel()
+        indices = {
+            key: {
+                hemisphere: voxels[support[voxels]]
+                for hemisphere, voxels in hemispheres_indices.items()
             }
+            for key, hemispheres_indices in target_indices.items()
+        }
         candidate_indices = {
             target.key: {
                 candidate.key: {
-                    hemisphere: support
-                    & prepared[target.key][candidate.key][hemisphere]
-                    for hemisphere in hemispheres
+                    hemisphere: voxels[support[voxels]]
+                    for hemisphere, voxels in prepared[target.key][candidate.key].items()
                 }
                 for candidate in candidates
                 if not candidate.is_composite
@@ -674,8 +695,11 @@ def extract_profiles(
             for target in targets
         }
         unrestricted_indices = {
-            key: {hemisphere: support & mask for hemisphere, mask in masks.items()}
-            for key, masks in unrestricted.items()
+            key: {
+                hemisphere: voxels[support[voxels]]
+                for hemisphere, voxels in hemispheres_indices.items()
+            }
+            for key, hemispheres_indices in unrestricted.items()
         }
 
         for condition in conditions:
@@ -683,7 +707,7 @@ def extract_profiles(
             image = nib.load(str(path))
             if not same_grid(image, reference):
                 raise ValueError(f"Fixed-effect grid differs from reference: {path}")
-            data = np.asarray(image.dataobj, dtype=np.float32)
+            data = np.asarray(image.dataobj, dtype=np.float32).ravel()
             for target in targets:
                 for hemisphere in hemispheres:
                     row: dict[str, object] = {
@@ -692,23 +716,26 @@ def extract_profiles(
                         "condition": condition.name,
                         "condition_key": condition.key,
                         "hemisphere": hemisphere,
-                        target.key: _finite_median(
-                            data, indices[target.key][hemisphere]
+                        "voxel_statistic": statistic,
+                        target.key: _finite_statistic(
+                            data, indices[target.key][hemisphere], statistic
                         ),
                     }
                     for candidate in candidates:
                         if not candidate.is_composite:
-                            row[candidate.key] = _finite_median(
+                            row[candidate.key] = _finite_statistic(
                                 data,
                                 candidate_indices[target.key][candidate.key][
                                     hemisphere
                                 ],
+                                statistic,
                             )
                     for candidate_key in unrestricted_profile_keys:
                         row[unrestricted_profile_column(candidate_key)] = (
-                            _finite_median(
+                            _finite_statistic(
                                 data,
                                 unrestricted_indices[candidate_key][hemisphere],
+                                statistic,
                             )
                         )
                     rows[target.key].append(row)
@@ -1089,7 +1116,14 @@ def analyze_profile(
     seed: int = 20_260_710,
     exclude_tasks: Iterable[str] = (),
 ) -> dict[str, pd.DataFrame]:
-    """Calculate ranks, bootstrap intervals, paired differences, and commonality."""
+    """Calculate ranks, bootstrap intervals, paired differences, and commonality.
+
+    ``n_cohort`` is the participant resampling pool. Candidate support is the
+    number of finite target/candidate participant pairs in each retained
+    condition/hemisphere cell, summarized by its minimum, median, and maximum.
+    These descriptive counts do not change the cell-wise means or bootstrap:
+    each ROI mean uses its own available participants within each draw.
+    """
     keep = ~wide["task"].isin(set(exclude_tasks))
     frame = wide.loc[keep].copy()
     condition_order = {
@@ -1161,6 +1195,10 @@ def analyze_profile(
         participant_r = weighted_corr_rows(
             values[:, :, 0], participant_profiles[candidate.key], weights
         )
+        paired_cell_counts = (
+            np.isfinite(values[:, :, 0])
+            & np.isfinite(participant_profiles[candidate.key])
+        ).sum(axis=0)
         bootstrap_correlations[candidate.key] = draws
         low, median, high = np.nanquantile(draws, [0.025, 0.5, 0.975])
         correlation_rows.append(
@@ -1183,7 +1221,12 @@ def analyze_profile(
                 "participant_median_r": np.nanmedian(participant_r),
                 "participant_q25_r": np.nanquantile(participant_r, 0.25),
                 "participant_q75_r": np.nanquantile(participant_r, 0.75),
-                "n_participants": len(participants),
+                "n_cohort": len(participants),
+                "n_paired_cell_participants_min": int(paired_cell_counts.min()),
+                "n_paired_cell_participants_median": float(
+                    np.median(paired_cell_counts)
+                ),
+                "n_paired_cell_participants_max": int(paired_cell_counts.max()),
                 "n_conditions": int(cells["condition_key"].nunique()),
                 "n_tasks": int(cells["task"].nunique()),
             }
@@ -1242,7 +1285,7 @@ def analyze_profile(
                 "bootstrap_q025": low,
                 "bootstrap_q975": high,
                 "probability_reference_greater": float(np.nanmean(difference > 0)),
-                "n_participants": len(participants),
+                "n_cohort": len(participants),
                 "n_bootstrap": n_bootstrap,
             }
         )
@@ -1388,7 +1431,7 @@ def held_out_task_prediction(
         "q2_global_mean": 1 - sse / sst,
         "weighted_sse": sse,
         "weighted_sst": sst,
-        "n_participants": n_participants,
+        "n_cohort": n_participants,
         "n_conditions": group["condition_key"].nunique(),
         "n_tasks": group["task"].nunique(),
     })

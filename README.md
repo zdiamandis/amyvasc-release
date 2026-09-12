@@ -17,7 +17,7 @@ uv sync --locked --python 3.12
 ```
 
 Obtain the imaging and atlas inputs listed below, then run the analysis stages
-in `analysis/README.md`. After stages 1--9 are complete, export the 26
+in `analysis/README.md`. After stages 1--9 are complete, export the 31
 manuscript-facing tables with:
 
 ```bash
@@ -28,6 +28,7 @@ uv run python analysis/10_export_figure_tables.py \
   --smoothing-dir <smoothing-summary-dir> \
   --rapidtide-dir <rapidtide-summary-dir> \
   --figure7-source-profiles-dir <figure7-profile-dir> \
+  --mean-source-profiles-dir <mean-sensitivity-profile-dir> \
   --s5-source-profiles-dir <s5-profile-dir> \
   --s4-source-profiles-dir <s4-profile-dir> \
   --s4-positive-controls-dir <s4-control-dir> \
@@ -45,6 +46,11 @@ Image panels are rendered separately from prepared NIfTI maps with
 `analysis/11_render_vascular_panels.py` and `analysis/12_render_hcp_maps.py`.
 See `figures/README.md` for inputs and examples. The vascular panels require
 the follow-up data available from the authors on request.
+
+Rendering from these tables reproduces the quantitative panels. Reproducing
+their underlying estimates requires running the preceding imaging analyses.
+Anatomical composites and manuscript assembly steps are described in
+`figures/README.md`.
 
 ## Analysis workflow
 
