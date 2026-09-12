@@ -22,6 +22,8 @@ FIGURE_TABLES = {
     ),
     "5": ("figure5_panel_b_hcp_emotion_extent.tsv",),
     "6": (
+        "figure6_panel_b_participant_ordering.tsv",
+        "figure6_panel_c_participant_slopes.tsv",
         "figure6_panel_bc_group_summary.tsv",
         "figure6_panel_d_amygdala_probability_sensitivity.tsv",
     ),
