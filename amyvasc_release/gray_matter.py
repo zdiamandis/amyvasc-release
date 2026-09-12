@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -47,6 +48,7 @@ def _fast_gray_matter_probability(
         subprocess.run(
             [executable, *FAST_OPTIONS, "-o", str(prefix), str(template_path)],
             check=True,
+            env={**os.environ, "FSLOUTPUTTYPE": "NIFTI_GZ"},
         )
         path = prefix.with_name(f"{prefix.name}_pve_1.nii.gz")
         if not path.is_file():
@@ -122,6 +124,7 @@ def build_gray_matter_support(
             str(template_path),
         ],
         "fast_probability_threshold": GM_PROBABILITY_THRESHOLD,
+        "fast_output_type": "NIFTI_GZ",
         "hcp_resampling": "nearest neighbor to the fixed-effect grid",
         "voxel_counts": {
             "fast_pgm50": int(fast_support.sum()),

@@ -27,7 +27,7 @@ dependencies = [
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.9,<4" },
     { name = "nibabel", specifier = ">=5.3,<6" },
-    { name = "nilearn", specifier = ">=0.13.1,<1" },
+    { name = "nilearn", specifier = "==0.13.1" },
     { name = "numpy", specifier = ">=2.1,<3" },
     { name = "pandas", specifier = ">=2.2,<4" },
     { name = "scipy", specifier = ">=1.14,<2" },
@@ -538,7 +538,7 @@ wheels = [
 
 [[package]]
 name = "nilearn"
-version = "0.14.0"
+version = "0.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
@@ -551,9 +551,9 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dc/07/93844f4f3fdb7035da68350bbf6d39e9cf2bc04e32055b4fe534d10c7fd1/nilearn-0.14.0.tar.gz", hash = "sha256:2c3cf94b0f77461c242baf61b9efb4dd68dd4e2fc4eab19ae93e978b0c45b9b9", size = 56771019, upload-time = "2026-07-02T06:44:21.514Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/c0/b06fa98658b9f43d7cd89c4b2527a637a2962d05838658f767d8dda8e790/nilearn-0.13.1.tar.gz", hash = "sha256:66d4a4f3f1dea9b8683806849ea8e91abfeac11e14f7e972a726f644e515bc2b", size = 46371538, upload-time = "2026-02-10T17:08:17.287Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/0a/e687f94ddc15ba1ad186d3d69a800cafcfc267dbc9fe60b6eb30f5195a20/nilearn-0.14.0-py3-none-any.whl", hash = "sha256:5dc6171c3b689e28c65c9951d0ac26158b825c5c37cfac959da73aae986eb1a7", size = 11488789, upload-time = "2026-07-02T06:43:05.899Z" },
+    { url = "https://files.pythonhosted.org/packages/89/3d/91ff1823b291de709e92b01373ab9c1d582658ce4b795e443b76761cd2c8/nilearn-0.13.1-py3-none-any.whl", hash = "sha256:2543cea9e2b001c079b7f81d1bff3050576125eb906cf318a9992add9a63c19e", size = 10638666, upload-time = "2026-02-10T17:04:47.21Z" },
 ]
 
 [[package]]

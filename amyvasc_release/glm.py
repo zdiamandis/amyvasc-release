@@ -14,6 +14,8 @@ from nilearn.glm import compute_fixed_effects
 from nilearn.glm.first_level import FirstLevelModel
 from nilearn.masking import compute_multi_epi_mask
 
+from .provenance import software_versions
+
 
 @dataclass(frozen=True)
 class Contrast:
@@ -233,6 +235,7 @@ def fit_run(
             "degrees_of_freedom": dof,
             "contrasts": [spec.stem for spec in contrasts],
             "smoothing_fwhm": settings.smoothing_fwhm,
+            "software_versions": software_versions(),
         },
     )
     return RunResult(run_label, output_dir, dof)
@@ -293,6 +296,7 @@ def combine_runs(
             ),
             "contrasts": list(contrast_stems),
             "precision_weighted": True,
+            "software_versions": software_versions(),
         },
     )
 
