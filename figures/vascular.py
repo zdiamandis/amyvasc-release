@@ -352,7 +352,7 @@ def render_figure3(config):
         0.4,
         "VENAT partial-volume fraction",
         zero_as_int=True,
-        ticks=np.linspace(0, 0.4, 9),
+        ticks=np.linspace(0, 0.4, 5),
     )
     effect_bar, vessel_bar = fig.add_subplot(grid[6, 0]), fig.add_subplot(grid[6, 1])
     _colorbar(fig, effect_bar, HOT, 3, "Task activation (fixed-effects effect)")
