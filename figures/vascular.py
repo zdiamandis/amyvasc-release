@@ -208,10 +208,10 @@ def _outline(ax, data, extent):
         )
 
 
-def _colorbar(fig, ax, cmap, vmax, label, *, zero_as_int=False, scale=1.55):
+def _colorbar(fig, ax, cmap, vmax, label, *, zero_as_int=False, scale=1.55, ticks=None):
     scalar = ScalarMappable(norm=colors.Normalize(0, vmax), cmap=cmap)
     scalar.set_array([])
-    bar = fig.colorbar(scalar, cax=ax, orientation="horizontal")
+    bar = fig.colorbar(scalar, cax=ax, orientation="horizontal", ticks=ticks)
     bar.set_label(label, fontsize=8 * scale)
     bar.ax.tick_params(labelsize=7 * scale)
     if zero_as_int:
@@ -352,6 +352,7 @@ def render_figure3(config):
         0.4,
         "VENAT partial-volume fraction",
         zero_as_int=True,
+        ticks=np.linspace(0, 0.4, 9),
     )
     effect_bar, vessel_bar = fig.add_subplot(grid[6, 0]), fig.add_subplot(grid[6, 1])
     _colorbar(fig, effect_bar, HOT, 3, "Task activation (fixed-effects effect)")
