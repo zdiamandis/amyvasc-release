@@ -41,10 +41,8 @@ export FSLDIR=/path/to/fsl
 export PATH="$FSLDIR/share/fsl/bin:$FSLDIR/bin:$PATH"
 ```
 
-The FAST wrapper explicitly requests compressed NIfTI output (`NIFTI_GZ`),
-independently of the shell's output-format setting. The Python lockfile pins
-Nilearn 0.13.1, matching the manuscript; GLM and source-profile metadata record
-the versions actually used.
+The lockfile pins Nilearn 0.13.1, matching the manuscript. GLM and source-profile
+metadata record the versions used.
 
 For gray-matter support, use FSL's `MNI152_T1_2mm_brain.nii.gz` and
 TemplateFlow's `tpl-MNI152NLin6Asym_res-02_atlas-HCP_dseg.nii.gz`. Supply these
@@ -178,9 +176,7 @@ Figure 7 and Figure S5 use 1,000 participant bootstrap draws. The Figure S4
 mesencephalic target specifies 2,000 draws in `s4_targets.tsv`, overriding the
 CLI default. Seeds and effective draw counts are recorded per target in
 `run_metadata.json`. Figure S5 extracts each segment and exclusion mask
-independently, using the same seven-task support rule. This replaces the local
-manuscript workflow's voxel-table stratification without changing the ROI
-definition or estimator.
+independently, using the same seven-task support rule.
 
 For the mean sensitivity, reuse the Figure 7 inputs and write a separate run:
 
