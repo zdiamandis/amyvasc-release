@@ -33,9 +33,7 @@ upstream prerequisites; they are not performed by this renderer.
 | `emotion_effect` | Subject-specific fear-minus-shape fixed-effects effect from `03_fit_internal_emotion.py` |
 | `movie_effect` | Subject-specific face-presence fixed-effects effect from `04_fit_movie_faces.py` |
 | `frangi` | Registered 0.5-mm QSM-derived Frangi venogram with the preparation below |
-| `amygdala` | Binary CIT168 pAmy >= 0.50 mask on the exact Emotion effect grid |
-| `movie_amygdala_pseg` | Original subject-space 0.5-mm CIT168 probability segmentation used by S2 |
-| `cit168_labels` | CIT168 label names in probability-volume order |
+| `amygdala` | Binary CIT168 pAmy >= 0.50 mask on the exact Emotion effect grid, shared by Figure 3B, S2 and S3 |
 | `t2w` | Subject-specific 0.5-mm T2-weighted template |
 | `tof` | Registered, brain-masked, session-averaged 0.5-mm TOF arteriogram |
 
@@ -59,15 +57,13 @@ exponent 0.5. The renderer expects this completed vesselness image; it does not
 apply that correction again. The original processing outputs and settings must
 be obtained with the follow-up data to reproduce this upstream reconstruction.
 
-Figure 3/S3 binary contours use the selected subject-space CIT168 segmentation:
+Figure 3B, S2 and S3 use the same binary mask from the subject-space CIT168 segmentation:
 clamp each selected amygdala probability label to [0,1], sum and clamp the union,
 resample with FSL FLIRT sinc interpolation to the Emotion effect grid, clamp
 again, and threshold at 0.50. The reusable functions are
 `amyvasc_release.masks.build_cit168_probability`,
-`resample_probability_sinc`, and `save_mask`. S2 retains its original continuous
-0.5-mm CIT168 union: the renderer sums the selected probability channels, clamps
-the union, and samples the 0.50 contour on the display grid. These are separate
-inputs because the finalized panels used those distinct contour representations.
+`resample_probability_sinc`, and `save_mask`. All three figures contour the nearest
+native 2-mm mask slice at 0.50 without interpolating the binary mask between slices.
 
 VENAT requires an inter-template spatial transform before rendering. Obtain the
 original partial-volume atlas and TemplateFlow's 1-mm T1w templates and brain
@@ -94,6 +90,8 @@ registered atlas with the figure inputs.
 - Neurological orientation; subject sampling z coordinates are -8.977964,
   -9.969137, and -10.46914 mm for Damy001–003; displayed coordinates are rounded
   to 0.5 mm. The HCP row is z = -12 mm in MNI space.
+- The nearest native mask slices are centered at -8, -10 and -10 mm for
+  Damy001–003. Display coordinates label the requested image/MIP planes.
 - Native activation pixels and binary contours retain their voxel-center world
   coordinates; image extents extend half a voxel beyond the outer centers.
 - Figure 3: HCP single-slice activation with a 3-mm VENAT MIP; individual

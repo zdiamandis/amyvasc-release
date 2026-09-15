@@ -14,8 +14,6 @@
       "movie_effect": "../outputs/movies/sub-Damy001/fixed_effects/contrasts/face_presence_effect.nii.gz",
       "frangi": "../inputs/Damy001/frangi.nii.gz",
       "amygdala": "../inputs/Damy001/amygdala_p50_emotion_grid.nii.gz",
-      "movie_amygdala_pseg": "../inputs/Damy001/cit168_movie_pseg.nii.gz",
-      "cit168_labels": "../inputs/CIT168_SubCort_Labels.txt",
       "t2w": "../inputs/Damy001/T2w.nii.gz",
       "tof": "../inputs/Damy001/tof.nii.gz"
     },
@@ -26,8 +24,6 @@
       "movie_effect": "../outputs/movies/sub-Damy002/fixed_effects/contrasts/face_presence_effect.nii.gz",
       "frangi": "../inputs/Damy002/frangi.nii.gz",
       "amygdala": "../inputs/Damy002/amygdala_p50_emotion_grid.nii.gz",
-      "movie_amygdala_pseg": "../inputs/Damy002/cit168_movie_pseg.nii.gz",
-      "cit168_labels": "../inputs/CIT168_SubCort_Labels.txt",
       "t2w": "../inputs/Damy002/T2w.nii.gz",
       "tof": "../inputs/Damy002/tof.nii.gz"
     },
@@ -38,8 +34,6 @@
       "movie_effect": "../outputs/movies/sub-Damy003/fixed_effects/contrasts/face_presence_effect.nii.gz",
       "frangi": "../inputs/Damy003/frangi.nii.gz",
       "amygdala": "../inputs/Damy003/amygdala_p50_emotion_grid.nii.gz",
-      "movie_amygdala_pseg": "../inputs/Damy003/cit168_movie_pseg.nii.gz",
-      "cit168_labels": "../inputs/CIT168_SubCort_Labels.txt",
       "t2w": "../inputs/Damy003/T2w.nii.gz",
       "tof": "../inputs/Damy003/tof.nii.gz"
     }

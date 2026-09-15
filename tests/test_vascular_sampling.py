@@ -1,6 +1,7 @@
 """Check slice orientation and projection geometry used by anatomical panels."""
 
 import unittest
+from unittest.mock import patch
 
 import nibabel as nib
 import numpy as np
@@ -8,15 +9,53 @@ import numpy as np
 from figures.vascular import (
     _layer,
     _outline,
+    _subject_row,
     native_slice,
     plt,
     sample_mip,
     sample_slice,
+    render_figure_s3,
     world_grid,
 )
 
 
 class VascularSamplingTests(unittest.TestCase):
+    def test_subject_figures_keep_the_same_native_mask_at_an_off_grid_plane(self):
+        affine = np.diag([2.0, 2.0, 2.0, 1.0])
+        affine[:3, 3] = (-6, -6, -2)
+        data = np.ones((7, 7, 3), dtype=np.float32)
+        anatomy = nib.Nifti1Image(data, affine)
+        mask = np.zeros_like(data)
+        mask[3, 3, 1] = 1  # z=0: a single voxel centered at x=y=0.
+        mask[2, 2, 2] = 1  # z=2 differs, so interpolation would alter the contour.
+        mask_img = nib.Nifti1Image(mask, affine)
+        row = dict(
+            label="subject",
+            z=0.6,
+            emotion_effect="emotion",
+            movie_effect="movie",
+            frangi="frangi",
+            amygdala="amygdala",
+            t2w="t2w",
+            tof="tof",
+        )
+        expected = np.array([[-1, 0], [0, -1], [0, 1], [1, 0]])
+        with patch("figures.vascular._load", return_value=(anatomy, data)), patch(
+            "figures.vascular.require_binary_mask", return_value=mask_img
+        ):
+            for movie in (False, True):
+                fig, axes = plt.subplots(1, 3)
+                self.addCleanup(plt.close, fig)
+                _subject_row(axes, row, movie=movie)
+                for ax in axes:
+                    vertices = ax.collections[0].get_paths()[0].vertices
+                    np.testing.assert_array_equal(np.unique(vertices, axis=0), expected)
+            fig = render_figure_s3({"subjects": [row] * 3})
+            self.addCleanup(plt.close, fig)
+            for ax in fig.axes:
+                vertices = ax.collections[0].get_paths()[0].vertices
+                np.testing.assert_array_equal(np.unique(vertices, axis=0), expected)
+
     def test_world_slice_and_centered_mip_have_the_expected_voxels(self):
         ijk = np.indices((7, 7, 7))
         data = (100 * ijk[0] + 10 * ijk[1] + ijk[2]).astype(np.float32)

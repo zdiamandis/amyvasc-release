@@ -23,8 +23,6 @@ from matplotlib.lines import Line2D
 from scipy.ndimage import map_coordinates
 
 from amyvasc_release.masks import (
-    AMYGDALA_LABELS,
-    load_labels,
     require_binary_mask,
     same_grid,
 )
@@ -52,8 +50,6 @@ def load_manifest(path: Path) -> dict:
         "frangi",
         "t2w",
         "tof",
-        "movie_amygdala_pseg",
-        "cit168_labels",
     }
     for row in [config.get("hcp", {}), *config["subjects"]]:
         for key in row.keys() & path_keys:
@@ -272,18 +268,6 @@ def _hcp_row(axes, row):
         _outline(ax, amy, amy_extent)
 
 
-def _movie_amygdala(row):
-    """S2 uses the continuous subject-space CIT168 union, as in the manuscript."""
-    image = nib.load(row["movie_amygdala_pseg"])
-    labels = load_labels(row["cit168_labels"])
-    if image.ndim != 4 or image.shape[3] != len(labels):
-        raise ValueError("Subject CIT168 probabilities do not match the label table.")
-    probability = np.zeros(image.shape[:3], np.float32)
-    for label in AMYGDALA_LABELS:
-        probability += np.asarray(image.dataobj[..., labels.index(label)], np.float32)
-    return image, np.clip(probability, 0, 1)
-
-
 def _subject_row(axes, row, *, movie=False, titles=False):
     z = float(row["z"])
     effect_img, effect = _load(row["movie_effect" if movie else "emotion_effect"])
@@ -291,15 +275,10 @@ def _subject_row(axes, row, *, movie=False, titles=False):
     x, y, extent = world_grid()
     activation = sample_slice(effect_img, effect, x, y, z, order=0)
     vessel = sample_mip(frangi_img, frangi, x, y, z, width=5, order=0)
-    if movie:
-        amy_img, probability = _movie_amygdala(row)
-        amy = sample_slice(amy_img, probability, x, y, z, order=1)
-        amy_extent = extent
-    else:
-        amy_img = require_binary_mask(row["amygdala"])
-        if not same_grid(effect_img, amy_img):
-            raise ValueError(f"Emotion mask must be on the effect grid: {row['label']}")
-        amy, amy_extent = native_slice(amy_img, amy_img.get_fdata(dtype=np.float32), z)
+    amy_img = require_binary_mask(row["amygdala"])
+    if not movie and not same_grid(effect_img, amy_img):
+        raise ValueError(f"Emotion mask must be on the effect grid: {row['label']}")
+    amy, amy_extent = native_slice(amy_img, amy_img.get_fdata(dtype=np.float32), z)
     headings = (
         ("Movie face presence", "Vascular map", "Movie + vascular")
         if movie
@@ -432,9 +411,7 @@ def render_figure_s3(config):
         anatomy = sample_slice(t2_img, t2, x, y, z, order=1)
         arteries = sample_mip(tof_img, tof, x, y, z, width=8, order=1)
         veins = sample_mip(frangi_img, frangi, x, y, z, width=8, order=0)
-        amy = sample_slice(
-            amy_img, amy_img.get_fdata(dtype=np.float32), x, y, z, order=1
-        )
+        amy, amy_extent = native_slice(amy_img, amy_img.get_fdata(dtype=np.float32), z)
         _format_axis(ax, row["label"], z, expanded=True)
         positive = anatomy[np.isfinite(anatomy) & (anatomy > 0)]
         low, high = np.percentile(positive, [2, 98])
@@ -465,7 +442,7 @@ def render_figure_s3(config):
                 extent=extent,
                 interpolation="nearest",
             )
-        _outline(ax, amy, extent)
+        _outline(ax, amy, amy_extent)
     fig.legend(
         handles=[
             Line2D([0], [0], color="#FF6A1A", lw=4, label="TOF arteriogram"),
