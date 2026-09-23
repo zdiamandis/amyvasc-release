@@ -125,9 +125,6 @@ this repository.
 - VENAT: the [venous neuroanatomy atlas](https://pubmed.ncbi.nlm.nih.gov/31278570/),
   registered from MNI152NLin2009cAsym to MNI152NLin6Asym for Figure 3.
 
-Small checks of the scientific calculations and file interfaces use synthetic
-inputs only: `uv run python -m unittest discover -s tests`.
-
 ## Citation and license
 
 Please cite the accompanying manuscript and the original datasets and atlases
